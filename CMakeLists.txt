@@ -27,6 +27,8 @@ include(CompilerFlags)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Make.helper.cmake"
 		       "${CMAKE_CURRENT_SOURCE_DIR}/Make.helper" @ONLY)
 
+enable_testing()
+
 # (8) main library target
 add_subdirectory(external)
 add_subdirectory(include/sdsl)
@@ -42,5 +44,5 @@ add_subdirectory(test)
 # (10) perform extra tasks such as doxygen / packaging and uninstall target 
 add_subdirectory(extras)
 
-add_subdirectory(tutorial)
-add_subdirectory(examples)
+#add_subdirectory(tutorial)
+#add_subdirectory(examples)
