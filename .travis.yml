@@ -32,17 +32,6 @@ matrix:
             - cmake
             - g++-4.9
 
-    - env: MYCC="gcc-5" MYCXX="g++-5" STDLIB=libstdc++ MYBUILD=Debug
-      os: linux
-      addons: &gcc5
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - g++-5
-
     - env: MYCC="gcc-5" MYCXX="g++-5" STDLIB=libstdc++ MYBUILD=Release
       os: linux
       addons: &gcc5
@@ -54,17 +43,6 @@ matrix:
             - cmake
             - g++-5
 
-    - env: MYCC="gcc-6" MYCXX="g++-6" STDLIB=libstdc++ MYBUILD=Debug
-      os: linux
-      addons: &gcc6
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - g++-6
-
     - env: MYCC="gcc-6" MYCXX="g++-6" STDLIB=libstdc++ MYBUILD=Release
       os: linux
       addons: &gcc6
@@ -75,6 +53,28 @@ matrix:
           packages:
             - cmake
             - g++-6
+
+    - env: MYCC="gcc-7" MYCXX="g++-7" STDLIB=libstdc++ MYBUILD=Release
+      os: linux
+      addons: &gcc7
+        apt:
+          sources:
+            - kalakris-cmake
+            - ubuntu-toolchain-r-test
+          packages:
+            - cmake
+            - g++-7
+
+    - env: MYCC="gcc-8" MYCXX="g++-8" STDLIB=libstdc++ MYBUILD=Release
+      os: linux
+      addons: &gcc8
+        apt:
+          sources:
+            - kalakris-cmake
+            - ubuntu-toolchain-r-test
+          packages:
+            - cmake
+            - g++-8
 
     - env: MYCC="clang" MYCXX="clang++" STDLIB=libc++
       os: osx

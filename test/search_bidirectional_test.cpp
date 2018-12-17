@@ -1,3 +1,4 @@
+#include "common.hpp"
 #include <sdsl/suffix_arrays.hpp>
 #include "gtest/gtest.h"
 #include <iostream>
@@ -12,8 +13,13 @@ using namespace std;
 
 typedef sdsl::int_vector<>::size_type size_type;
 
+tMSS   test_case_file_map;
+tMSS   test_case_file_map_rev;
 string test_file;
 string test_file_rev;
+string temp_file;
+string temp_file_rev;
+string temp_dir;
 
 template<class T>
 class search_bidirectional_test : public ::testing::Test { };
@@ -37,8 +43,17 @@ TYPED_TEST(search_bidirectional_test, bidirectional_search)
 
     TypeParam csa1;
     TypeParam csa1_rev;
-    construct(csa1, test_file, 1);
-    construct(csa1_rev, test_file_rev, 1);
+
+    temp_file = sdsl::tmp_file(temp_dir+"/"+util::basename(test_file),util::basename(test_file));
+    cache_config config(false, temp_dir, util::basename(temp_file));
+    temp_file_rev = sdsl::tmp_file(temp_dir+"/"+util::basename(test_file_rev),util::basename(test_file_rev));
+    cache_config config_rev(false, temp_dir, util::basename(temp_file_rev));
+
+    construct(csa1, test_file, config, 1);
+    construct(csa1_rev, test_file_rev, config_rev, 1);
+
+    test_case_file_map = config.file_map;
+    test_case_file_map_rev = config_rev.file_map;
 
     std::mt19937_64 rng(13);
     std::uniform_int_distribution<uint64_t> distribution(0, csa1.size()-1);
@@ -117,20 +132,22 @@ TYPED_TEST(search_bidirectional_test, bidirectional_search)
     }
 }
 
+TYPED_TEST(search_bidirectional_test, delete_)
+{
+    sdsl::remove(temp_file);
+    sdsl::remove(temp_file_rev);
+    util::delete_all_files(test_case_file_map);
+    util::delete_all_files(test_case_file_map_rev);
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
-
-    if (argc < 2) {
-        cout << "Usage: " << argv[0] << " test_file" << endl;
-        cout << " (1) Reverses test_file; stores it in test_file_rev." << endl;
-        cout << " (2) Performs tests." << endl;
-        cout << " (3) Deletes test_file_reverse." << endl;
+    if (init_2_arg_test(argc, argv, "SEARCH_BIDIRECTIONAL", test_file, temp_dir, temp_file) != 0 ) {
         return 1;
     }
-    test_file = argv[1];
     test_file_rev = test_file + "_rev";
 
     {
