@@ -49,7 +49,7 @@ def run_unit_tests(slave_name, compiler, build_type, model)
     def platform
     def checkout_dir
 
-    stage ('initialise')
+    stage('initialise')
     {
         workspace = pwd()
         echo workspace
@@ -75,7 +75,7 @@ def run_unit_tests(slave_name, compiler, build_type, model)
     {
         dir("$workspace/build")
         {
-            sh "cmake $checkout_dir/sdsl-lite -DCMAKE_BUILD_TYPE=$build_type -DCMAKE_CXX_COMPILER=$compiler"
+            sh "cmake $checkout_dir -DCMAKE_BUILD_TYPE=$build_type -DCMAKE_CXX_COMPILER=$compiler"
         }
     }
 
@@ -91,7 +91,7 @@ def run_unit_tests(slave_name, compiler, build_type, model)
     {
         dir("$workspace/build")
         {
-            sh "ctest -j 4 --no-compress-output -VV --output-on-failure"
+            sh "ctest --output-on-failure" // -j 4
         }
     }
 }
@@ -103,8 +103,8 @@ def run_unit_tests(slave_name, compiler, build_type, model)
 // Configure unit tests. Add platforms here but adapt the inner loop of the matrix setup to call instantiate and
 // setup the right agent.
 def axis_agent = ["ubuntu"]
-def axis_compiler = ["g++-4.9", "g++-5", "g++-6", "g++-7", "g++-8"] // clang++
-def axis_build_type =["Release", "Debug"]
+def axis_compiler = ["g++-4.9", "g++-5", "g++-6", "g++-7", "g++-8"] // "clang++"
+def axis_build_type = ["Debug"] // "Release"
 def tasks = [:]
 
 // The following nested for loops define the compiler matrix for the unit tests.
@@ -119,11 +119,12 @@ for(int i = 0; i < axis_compiler.size(); ++i)
     {
         def axis_build_type_value = axis_build_type[k]
         // Only build nightlies in debug and release mode
-        if (!is_nightly && (axis_build_type_value == "Release"))
-            continue
+        // if (!is_nightly && (axis_build_type_value == "Release"))
+        //     continue
 
         def test_model = is_nightly ? 'Nightly' : 'Continuous'
         def label = "ubuntu_${axis_compiler_value}_$axis_build_type_value"
+        label = label.replace("++", "plusplus") // currently CMake of SDSL fails since it uses the path in a regex string and ++ characters are not escaped
         subTasks[label] =
         {
             node("ubuntu && $axis_compiler_value")
@@ -131,13 +132,13 @@ for(int i = 0; i < axis_compiler.size(); ++i)
                 // For docker nodes we need to define the workspace explicitly, as they use a mounted
                 // volume on the filesystem which is shared by all docker instances. Since the docker executor
                 // doesn't know the other running instances it cannot locking the workspace.
-                ws("$env.WORKSPACE")
+                ws("$env.WORKSPACE/ws/$label")
                 {
                     stage('install')
                     {
                         sh """
                             sudo apt-get update
-                            sudo apt-get install -y $axis_compiler_value cmake git
+                            sudo apt-get install -y $axis_compiler_value cmake git clang-format
                         """
 
                     }
