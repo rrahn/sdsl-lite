@@ -270,7 +270,6 @@ class int_vector
     typedef select_support_mcl<1, 1> select_1_type;
     typedef select_support_mcl<0, 1> select_0_type;
     typedef typename int_vec_category_trait<t_width>::type index_category;
-
     friend struct int_vector_trait<t_width>;
     friend class int_vector_iterator_base<int_vector>;
     friend class int_vector_iterator<int_vector>;
@@ -286,11 +285,11 @@ class int_vector
     template <uint8_t>
     friend class coder::comma;
     friend class memory_manager;
+    friend class aligned_memory_manager;
     static constexpr uint8_t fixed_int_width = t_width;
     float growth_factor = 1.5; //!< Growth factor for amortized constant time operations
                                // see the explanation in the documentation of FBVector on different growth factors
                                // https://github.com/facebook/folly/blob/master/folly/docs/FBVector.md#memory-handling
-
   private:
     size_type m_size;       //!< Number of bits needed to store int_vector.
     size_type m_capacity;   //!< Number of bits reserved by int_vector.
@@ -313,7 +312,7 @@ class int_vector
                                      std::ceil(std::log((bit_size + tmp_capacity - 1) / tmp_capacity) /
                                                std::log(growth_factor)));
             size_type new_capacity = std::ceil(tmp_capacity * resize_factor);
-            memory_manager::resize(*this, new_capacity);
+            aligned_memory_manager::resize(*this, new_capacity);
         }
         m_size = size * m_width;
     }
@@ -475,66 +474,12 @@ class int_vector
         *(end() - 1) = value;
     }
 
-    //! Remove element at the end.
-    void pop_back() { resize(size() - 1); }
-
-    //! Move constructor.
-    int_vector(int_vector && v);
-
-    //! Copy constructor.
-    int_vector(const int_vector & v);
-
-    //! Destructor.
-    ~int_vector();
-
-    //! Assign. Resize int_vector to `size` and fill elements with `default_value`.
-    /*!\param size Number of elements.
-     * \param default_value Elements to be inserted.
-     */
-    void assign(size_type size, value_type default_value)
-    {
-        bit_resize(size * m_width);
-        util::set_to_value(*this, default_value); // new initialization
-    }
-
-    //! Assign. Resize int_vector and initialize with initializer_list.
-    /*!\param il Initializer_list.
-     */
-    void assign(std::initializer_list<value_type> il)
-    {
-        bit_resize(il.size() * m_width);
-        size_type idx = 0;
-        for (auto x : il) { (*this)[idx++] = x; }
-    }
-
-    //! Assign. Resize int_vector and initialize by copying from an iterator range.
-    /*!\param first Iterator pointing to first element to be inserted.
-     * \param last  Iterator pointing to the elemnt after the one to be inserted.
-     */
-    template <typename input_iterator_t>
-    void assign(input_iterator_t first, input_iterator_t last)
-    {
-        assert(first <= last);
-        bit_resize((last - first) * m_width);
-        size_type idx = 0;
-        while (first < last) { (*this)[idx++] = *(first++); }
-    }
-
-    //! Equivalent to size() == 0.
-    bool empty() const noexcept { return 0 == m_size; }
-
-    //! Swap method for int_vector.
-    void swap(int_vector & v) noexcept { std::swap(v, *this); }
-
-    //! Free unused allocated memory.
-    void shrink_to_fit() { memory_manager::resize(*this, m_size); }
-
     //! Reserve storage. If the new capacity is smaller than the current, this method does nothing.
     /*!\param capacity New capacity in bits
      */
     void reserve(size_type capacity)
     {
-        if (capacity * m_width > m_capacity || m_data == nullptr) { memory_manager::resize(*this, capacity * m_width); }
+        if (capacity * m_width > m_capacity || m_data == nullptr) { aligned_memory_manager::resize(*this, capacity * m_width); }
     }
 
     //! Resize the int_vector in terms of elements. If the current size is smaller than `size`, the additional elements
@@ -1494,8 +1439,8 @@ template <uint8_t t_width>
 int_vector<t_width> & int_vector<t_width>::operator=(int_vector && v)
 {
     if (this != &v)
-    {                                 // if v is not the same object
-        memory_manager::clear(*this); // clear allocated memory
+    {                                         // if v is not the same object
+        aligned_memory_manager::clear(*this); // clear allocated memory
         m_size = v.m_size;
         m_data = v.m_data; // assign new memory
         m_width = v.m_width;
@@ -1511,7 +1456,7 @@ int_vector<t_width> & int_vector<t_width>::operator=(int_vector && v)
 template <uint8_t t_width>
 int_vector<t_width>::~int_vector()
 {
-    memory_manager::clear(*this);
+    aligned_memory_manager::clear(*this);
 }
 
 // sdsl::swap (to fulfill the container concept)
@@ -1524,7 +1469,7 @@ void swap(int_vector<t_width> & v1, int_vector<t_width> & v2) noexcept
 template <uint8_t t_width>
 void int_vector<t_width>::bit_resize(const size_type size)
 {
-    if (size > m_capacity || m_data == nullptr) { memory_manager::resize(*this, size); }
+    if (size > m_capacity || m_data == nullptr) { aligned_memory_manager::resize(*this, size); }
     m_size = size;
 }
 

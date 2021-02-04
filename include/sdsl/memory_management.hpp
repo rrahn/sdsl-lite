@@ -8,6 +8,12 @@
 #ifndef INCLUDED_SDSL_MEMORY_MANAGEMENT
 #define INCLUDED_SDSL_MEMORY_MANAGEMENT
 
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#elif defined(__linux__)
+#include <malloc.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 
@@ -962,6 +968,95 @@ class memory_manager
         return ftruncate(fd, new_size);
 #endif
         return -1;
+    }
+};
+
+class aligned_memory_manager
+{
+private:
+    static constexpr size_t alignment = 64; // always works with avx512
+
+    static aligned_memory_manager & the_manager()
+    {
+        static aligned_memory_manager m{};
+        return m;
+    }
+
+  public:
+    static uint64_t * alloc_mem(size_t size_in_bytes)
+    {
+        constexpr size_t alignment_mask = alignment - 1;
+        size_in_bytes = (size_in_bytes + (alignment_mask)) & ~alignment_mask;
+        return static_cast<uint64_t *>(aligned_alloc(alignment, size_in_bytes));
+    }
+
+    static void free_mem(uint64_t * ptr) { std::free(ptr); }
+
+    static uint64_t * realloc_mem(uint64_t * ptr, size_t size)
+    {
+        constexpr size_t alignment_mask = alignment - 1;
+        size_t new_size = (size + alignment_mask) & ~alignment_mask;
+        assert(new_size % alignment == 0);
+
+        void * new_ptr = aligned_alloc(alignment, new_size);
+        if (new_ptr != NULL)
+        {
+            size_t old_usable_size = new_size;
+#ifdef __APPLE__
+            old_usable_size = malloc_size(ptr);
+#elif defined(__linux__)
+            old_usable_size = malloc_usable_size(ptr);
+#endif
+            size_t copy_size = new_size < old_usable_size ? new_size : old_usable_size;
+            if (ptr != NULL)
+            {
+                memcpy(new_ptr, ptr, copy_size);
+                free(ptr);
+            }
+        }
+
+        return static_cast<uint64_t *>(new_ptr);
+    }
+
+  public:
+    static void use_hugepages([[maybe_unused]] size_t bytes = 0)
+    {
+        throw std::runtime_error(std::string("hugepages not supported on aligned memory manager"));
+        (void)bytes;
+    }
+
+    template <class t_vec>
+    static void resize(t_vec & v, const typename t_vec::size_type capacity)
+    {
+        uint64_t old_capacity_in_bytes = ((v.m_capacity + 63) >> 6) << 3;
+        uint64_t new_capacity_in_bytes = ((capacity + 63) >> 6) << 3;
+        bool do_realloc = old_capacity_in_bytes != new_capacity_in_bytes;
+        v.m_capacity = ((capacity + 63) >> 6) << 6; // set new_capacity to a multiple of 64
+
+        if (do_realloc || v.m_data == nullptr)
+        {
+            // Note that we allocate 8 additional bytes if m_capacity % 64 == 0.
+            // We need this padding since rank data structures do a memory
+            // access to this padding to answer rank(size()) if capacity()%64 ==0.
+            // Note that this padding is not counted in the serialize method!
+            size_t allocated_bytes = (size_t)(((v.m_capacity + 64) >> 6) << 3);
+            v.m_data = aligned_memory_manager::realloc_mem(v.m_data, allocated_bytes);
+            if (allocated_bytes != 0 && v.m_data == nullptr) { throw std::bad_alloc(); }
+
+            // update stats
+            if (do_realloc) { memory_monitor::record((int64_t)new_capacity_in_bytes - (int64_t)old_capacity_in_bytes); }
+        }
+    }
+    template <class t_vec>
+    static void clear(t_vec & v)
+    {
+        int64_t size_in_bytes = ((v.m_size + 63) >> 6) << 3;
+        // remove mem
+        aligned_memory_manager::free_mem(v.m_data);
+        v.m_data = nullptr;
+
+        // update stats
+        if (size_in_bytes) { memory_monitor::record(size_in_bytes * -1); }
     }
 };
 
